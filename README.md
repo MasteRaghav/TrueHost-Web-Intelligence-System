@@ -3,7 +3,7 @@
 ### Uncover the Real Hosting Origin Behind Suspicious Websites
 
 <p align="center">
-  <img src="https://via.placeholder.com/900x200.png?text=TrueHost+Web+Intelligence+System" alt="TrueHost Banner"/>
+    <img src="https://scribeage.com/wp-content/uploads/2024/12/TrueHost.png" alt="TrueHost Banner"/>
 </p>
 
 <p align="center">

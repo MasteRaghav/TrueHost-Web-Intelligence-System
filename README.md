@@ -251,5 +251,4 @@ POST /api/investigate
 
 ---
 
-```
 

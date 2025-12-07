@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Origin Server Detector</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .animate-spin { animation: spin 1s linear infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 min-h-screen">
+    <div id="app"></div>
+
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        function WebsiteInvestigator() {
+            const [domain, setDomain] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [results, setResults] = useState(null);
+            const [activeTab, setActiveTab] = useState('overview');
+            const [error, setError] = useState('');
+            const [apiStatus, setApiStatus] = useState(null);
+
+            // Check API status on load
+            React.useEffect(() => {
+                fetch('http://localhost:5000/api/health')
+                    .then(res => res.json())
+                    .then(data => setApiStatus(data.apis))
+                    .catch(err => console.log('API health check failed'));
+            }, []);
+
+            const investigateDomain = async () => {
+                if (!domain) {
+                    setError('Please enter a domain name');
+                    return;
+                }
+                
+                setLoading(true);
+                setResults(null);
+                setError('');
+
+                try {
+                    const response = await fetch('http://localhost:5000/api/investigate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ domain: domain })
+                    });
+
+                    if (!response.ok) throw new Error('Failed to investigate domain');
+
+                    const data = await response.json();
+                    setResults(data);
+                } catch (err) {
+                    setError('Failed to connect to backend. Make sure the Python server is running!');
+                    console.error('Error:', err);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const exportReport = () => {
+                if (!results) return;
+                const report = JSON.stringify(results, null, 2);
+                const blob = new Blob([report], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `advanced_investigation_${results.domain}_${Date.now()}.json`;
+                a.click();
+            };
+
+            const getRiskColor = (score) => {
+                if (score >= 70) return 'text-red-600';
+                if (score >= 40) return 'text-yellow-600';
+                return 'text-green-600';
+            };
+
+            const getRiskLabel = (score) => {
+                if (score >= 70) return 'High Risk';
+                if (score >= 40) return 'Medium Risk';
+                return 'Low Risk';
+            };
+
+            return (
+                <div className="min-h-screen p-6">
+                    <div className="max-w-7xl mx-auto">
+                        {/* Header with Badge */}
+                        <div className="text-center mb-8">
+                            <div className="flex items-center justify-center gap-3 mb-4">
+                                <svg className="w-12 h-12 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                </svg>
+                                <div>
+                                    <h1 className="text-4xl font-bold text-white">Origin Server Detector</h1>
+                                    <span className="inline-block mt-2 px-4 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-bold rounded-full">
+                                        Raghav & Vineet
+                                    </span>
+                                </div>
+                            </div>
+                            <p className="text-purple-200 text-lg">
+                            </p>
+                            
+                            {/* API Status Badges */}
+                            {apiStatus && (
+                                <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
+                                    <span className="text-xs text-purple-300">Active APIs:</span>
+                                    {Object.entries(apiStatus).map(([key, status]) => (
+                                        <span key={key} className={`px-2 py-1 rounded text-xs font-semibold ${
+                                            status === 'configured' || status === 'available' 
+                                                ? 'bg-green-500 text-white' 
+                                                : 'bg-gray-500 text-white'
+                                        }`}>
+                                            {key}: {status === 'configured' ? '✓' : status === 'available' ? '✓' : '○'}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Search Bar */}
+                        <div className="bg-white rounded-xl shadow-2xl p-6 mb-8">
+                            <div className="flex gap-4">
+                                <input
+                                    type="text"
+                                    value={domain}
+                                    onChange={(e) => setDomain(e.target.value)}
+                                    onKeyPress={(e) => e.key === 'Enter' && investigateDomain()}
+                                    placeholder="put random domain"
+                                    className="flex-1 px-4 py-4 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none text-lg"
+                                />
+                                <button
+                                    onClick={investigateDomain}
+                                    disabled={loading || !domain}
+                                    className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:from-red-700 hover:to-pink-700 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                                >
+                                    {loading ? (
+                                        <>
+                                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                            Investigating...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                            </svg>
+                                            Investigate
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                            {error && (
+                                <div className="mt-4 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded">
+                                    <p className="font-semibold">⚠️ Error: {error}</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Results */}
+                        {results && (
+                            <div className="space-y-6">
+                                {/* Enhanced Summary Cards */}
+                                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                                    <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-lg p-6 text-white">
+                                        <div className="text-sm opacity-80 mb-2">Risk Score</div>
+                                        <div className="text-4xl font-bold">{results.riskScore}%</div>
+                                        <div className="text-xs mt-2 opacity-90">{getRiskLabel(results.riskScore)}</div>
+                                    </div>
+
+                                    <div className="bg-gradient-to-br from-orange-500 to-red-600 rounded-lg shadow-lg p-6 text-white">
+                                        <div className="text-sm opacity-80 mb-2">Cloudflare</div>
+                                        <div className="text-4xl font-bold">{results.cloudflareDetected ? 'Yes' : 'No'}</div>
+                                        <div className="text-xs mt-2 opacity-90">Proxy Status</div>
+                                    </div>
+
+                                    <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-6 text-white">
+                                        <div className="text-sm opacity-80 mb-2">Origins</div>
+                                        <div className="text-4xl font-bold">{results.originServers.length}</div>
+                                        <div className="text-xs mt-2 opacity-90">Servers Found</div>
+                                    </div>
+
+                                    <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
+                                        <div className="text-sm opacity-80 mb-2">Subdomains</div>
+                                        <div className="text-4xl font-bold">{results.subdomains.length}</div>
+                                        <div className="text-xs mt-2 opacity-90">Discovered</div>
+                                    </div>
+
+                                    <div className="bg-gradient-to-br from-pink-500 to-pink-600 rounded-lg shadow-lg p-6 text-white">
+                                        <div className="text-sm opacity-80 mb-2">Techniques</div>
+                                        <div className="text-4xl font-bold">{results.advancedDetection?.techniques_count || 5}</div>
+                                        <div className="text-xs mt-2 opacity-90">Methods Used</div>
+                                    </div>
+                                </div>
+
+                                {/* Advanced Detection Badge */}
+                                {results.advancedDetection && (
+                                    <div className="bg-gradient-to-r from-purple-100 to-pink-100 border-2 border-purple-300 rounded-lg p-4">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                                                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                                    </svg>
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-purple-900">Advanced Detection Active</div>
+                                                    <div className="text-sm text-purple-700">
+                                                        {results.advancedDetection.total_techniques} • 
+                                                        {results.advancedDetection.securitytrails_used && ' SecurityTrails ✓'} 
+                                                        {results.advancedDetection.shodan_used && ' Shodan ✓'}
+                                                        {results.advancedDetection.confidence_boost > 0 && ` +${results.advancedDetection.confidence_boost}% confidence`}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-2xl font-bold text-purple-600">
+                                                    {results.advancedDetection.securitytrails_used && results.advancedDetection.shodan_used ? '🔥' : '⚡'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Main Results Panel */}
+                                <div className="bg-white rounded-xl shadow-2xl p-6">
+                                    <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">
+                                            Investigation Results
+                                        </span>
+                                    </h2>
+                                    
+                                    {/* Security Flags */}
+                                    {results.securityFlags && results.securityFlags.length > 0 && (
+                                        <div className="mb-6">
+                                            <h3 className="text-xl font-bold mb-3">🚨 Security Findings</h3>
+                                            <div className="space-y-2">
+                                                {results.securityFlags.map((flag, idx) => (
+                                                    <div key={idx} className={`p-4 rounded-lg border-l-4 ${
+                                                        flag.severity === 'high' ? 'bg-red-50 border-red-500' :
+                                                        flag.severity === 'medium' ? 'bg-yellow-50 border-yellow-500' :
+                                                        flag.type === 'success' ? 'bg-green-50 border-green-500' :
+                                                        'bg-blue-50 border-blue-500'
+                                                    }`}>
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="font-semibold">{flag.message}</span>
+                                                            <span className="text-xs bg-white px-2 py-1 rounded uppercase font-semibold">
+                                                                {flag.severity}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Origin Servers with Enhanced Details */}
+                                    {results.originServers && results.originServers.length > 0 && (
+                                        <div className="mb-6">
+                                            <h3 className="text-xl font-bold mb-3">🎯 Discovered Origin Servers</h3>
+                                            <div className="space-y-3">
+                                                {results.originServers.map((origin, idx) => (
+                                                    <div key={idx} className="p-5 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border-2 border-green-200">
+                                                        <div className="flex items-start justify-between mb-3">
+                                                            <div className="font-mono text-xl font-bold text-green-700">
+                                                                {origin.ip}
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="text-sm text-gray-600">Confidence:</div>
+                                                                <div className="flex items-center gap-1">
+                                                                    <div className="w-24 bg-gray-200 rounded-full h-2">
+                                                                        <div className="bg-green-500 h-2 rounded-full" style={{width: `${origin.confidence}%`}}></div>
+                                                                    </div>
+                                                                    <span className="font-bold text-green-600 text-sm">{origin.confidence}%</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="grid grid-cols-3 gap-4 text-sm">
+                                                            <div>
+                                                                <span className="text-gray-600">Detection:</span>
+                                                                <div className="font-semibold">{origin.source}</div>
+                                                            </div>
+                                                            <div>
+                                                                <span className="text-gray-600">Hosting:</span>
+                                                                <div className="font-semibold">{origin.hosting}</div>
+                                                            </div>
+                                                            <div>
+                                                                <span className="text-gray-600">Location:</span>
+                                                                <div className="font-semibold">{origin.location}</div>
+                                                            </div>
+                                                        </div>
+                                                        {results.shodanData && results.shodanData[origin.ip] && (
+                                                            <div className="mt-3 pt-3 border-t border-green-200">
+                                                                <div className="text-xs font-semibold text-purple-600 mb-1">🔍 Shodan Intelligence:</div>
+                                                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                                                    <div>Ports: {results.shodanData[origin.ip].ports.join(', ')}</div>
+                                                                    <div>OS: {results.shodanData[origin.ip].os}</div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Historical DNS (if available) */}
+                                    {results.historicalDNS && results.historicalDNS.length > 0 && (
+                                        <div className="mb-6">
+                                            <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
+                                                ⏰ Historical DNS Records
+                                                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                                                    SecurityTrails
+                                                </span>
+                                            </h3>
+                                            <div className="space-y-2">
+                                                {results.historicalDNS.map((record, idx) => (
+                                                    <div key={idx} className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                                                        <div className="flex items-center justify-between">
+                                                            <div>
+                                                                <span className="text-sm text-gray-600 mr-3">{record.date}</span>
+                                                                <span className="font-mono font-bold text-purple-700">{record.value}</span>
+                                                            </div>
+                                                            <span className="bg-purple-200 text-purple-800 px-2 py-1 rounded text-xs font-semibold">
+                                                                Historical IP
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Subdomains */}
+                                    {results.subdomains && results.subdomains.length > 0 && (
+                                        <div className="mb-6">
+                                            <h3 className="text-xl font-bold mb-3">🌐 Discovered Subdomains</h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                {results.subdomains.map((sub, idx) => (
+                                                    <div key={idx} className="p-3 bg-gray-50 rounded-lg flex items-center justify-between text-sm">
+                                                        <div>
+                                                            <span className="font-semibold">{sub.name}</span>
+                                                            <span className="text-gray-600 ml-2">→ {sub.ip}</span>
+                                                        </div>
+                                                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                                            sub.proxied ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'
+                                                        }`}>
+                                                            {sub.proxied ? 'Proxied' : 'Direct'}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Additional Intelligence */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                        {results.waybackData && results.waybackData.available && (
+                                            <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                                                <div className="font-semibold text-indigo-900 mb-2">📚 Wayback Machine</div>
+                                                <div className="text-sm text-indigo-700">
+                                                    Archived since {results.waybackData.timestamp?.substring(0, 4) || 'Unknown'}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {results.urlscanData && results.urlscanData.scanned && (
+                                            <div className="p-4 bg-cyan-50 rounded-lg border border-cyan-200">
+                                                <div className="font-semibold text-cyan-900 mb-2">🔍 URLScan.io</div>
+                                                <div className="text-sm text-cyan-700">
+                                                    Server: {results.urlscanData.server}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* WHOIS Info */}
+                                    {results.whoisInfo && (
+                                        <div>
+                                            <h3 className="text-xl font-bold mb-3">📋 WHOIS Information</h3>
+                                            <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
+                                                <div>
+                                                    <span className="text-gray-600">Registrar:</span>
+                                                    <div className="font-semibold">{results.whoisInfo.registrar}</div>
+                                                </div>
+                                                <div>
+                                                    <span className="text-gray-600">Country:</span>
+                                                    <div className="font-semibold">{results.whoisInfo.registrantCountry}</div>
+                                                </div>
+                                                <div>
+                                                    <span className="text-gray-600">Registration:</span>
+                                                    <div className="font-semibold">{results.whoisInfo.registrationDate}</div>
+                                                </div>
+                                                <div>
+                                                    <span className="text-gray-600">Expiry:</span>
+                                                    <div className="font-semibold">{results.whoisInfo.expiryDate}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Export Button */}
+                                    <div className="text-center mt-6">
+                                        <button onClick={exportReport} className="px-6 py-3 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-lg font-semibold hover:from-green-700 hover:to-blue-700 transition-all inline-flex items-center gap-2">
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                            </svg>
+                                            Export Report (JSON)
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Enhanced Features Section */}
+                        {!results && !loading && (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
+                                
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<WebsiteInvestigator />, document.getElementById('app'));
+    </script>
+</body>
+</html>

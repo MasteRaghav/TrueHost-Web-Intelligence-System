@@ -233,29 +233,6 @@ POST /api/investigate
 
 ---
 
-# ❗ Troubleshooting
-
-### Backend not starting?
-
-* Check Python installation
-* Reinstall libraries
-* Ensure correct working directory
-
-### Frontend shows: "Failed to contact backend"
-
-* Confirm backend running on port **5000**
-* Update backend URL in `script.js` if needed
-
-### WHOIS not loading?
-
-* Domain may be privacy-protected
-* WHOIS server may be rate-limiting
-
-### CT logs empty?
-
-* Domain may not have certificates
-* Some older certificates may not appear
-
 ---
 
 # 💡 Future Enhancements
@@ -269,14 +246,10 @@ POST /api/investigate
 
 # 🤝 Contributors
 
-* **Developer:** Your Name
+* **Developer:** Raghav Khatri
 * **Project Title:** TrueHost Web Intelligence System
 
 ---
 
 ```
 
----
-
-If you want a **dark-themed banner**, **ASCII banner**, or **logo-style header**, just tell me!
-```
